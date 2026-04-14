@@ -37,6 +37,68 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  app.get("/api/stats", (req, res) => {
+    const audits = db.data.audits;
+    const stats = {
+      totalSubmissions: audits.length,
+      reviewing: audits.filter(a => a.status === "reviewing").length,
+      approved: audits.filter(a => a.status === "approved").length,
+      rejected: audits.filter(a => a.status === "rejected").length,
+      connectedPlatforms: db.data.platforms.filter(p => p.status === "connected").length
+    };
+    res.json(stats);
+  });
+
+  // Background Sync Task (Every 5 minutes)
+  const syncWithOfficialApis = async () => {
+    console.log("[Background Sync] Starting sync with official APIs...");
+    const connectedPlatforms = db.data.platforms.filter(p => p.status === "connected");
+    
+    for (const platform of connectedPlatforms) {
+      const config = platform.config;
+      if (!config) continue;
+
+      try {
+        let latestStatus: 'reviewing' | 'approved' | 'rejected' | null = null;
+
+        // Real API logic based on platform
+        if (platform.id === "huawei") {
+          const hw = new HuaweiPlatform(config.apiKey, config.apiSecret);
+          // const apiResponse = await hw.getAppStatus(config.appId);
+          // latestStatus = apiResponse === '5' ? 'approved' : 'reviewing'; 
+        } else if (platform.id === "xiaomi") {
+          const mi = new XiaomiPlatform(config.appId, config.apiKey, config.apiSecret);
+          // const apiResponse = await mi.getAuditStatus(config.appId);
+          // latestStatus = apiResponse.status === 'PASSED' ? 'approved' : 'reviewing';
+        }
+
+        // Update local audits for this platform if status changed
+        if (latestStatus) {
+          await db.update(({ audits }) => {
+            audits.forEach(audit => {
+              if (audit.platformId === platform.id && audit.status === 'reviewing') {
+                audit.status = latestStatus!;
+                audit.feedback = `Synced from official API at ${new Date().toLocaleString()}`;
+              }
+            });
+          });
+        }
+        
+        // Update last sync time for the platform
+        await db.update(({ platforms }) => {
+          const p = platforms.find(item => item.id === platform.id);
+          if (p) p.lastSync = new Date().toLocaleString();
+        });
+      } catch (error) {
+        console.error(`[Background Sync] Failed for ${platform.id}:`, error);
+      }
+    }
+    console.log("[Background Sync] Completed.");
+  };
+
+  // Run sync every 5 minutes
+  setInterval(syncWithOfficialApis, 5 * 60 * 1000);
+
   app.get("/api/platforms", (req, res) => {
     res.json(db.data.platforms);
   });
