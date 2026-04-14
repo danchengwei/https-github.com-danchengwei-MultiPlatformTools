@@ -1,0 +1,6 @@
+{
+  "name": "多平台审核工具",
+  "description": "一站式多平台应用上传、审核与状态查询工具，支持华为、小米、OPPO、VIVO、应用宝、阿里等主流应用商店。",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
