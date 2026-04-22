@@ -6,6 +6,7 @@ export interface Platform {
   status: PlatformStatus;
   lastSync: string;
   icon?: string;
+  portalUrl?: string;
 }
 
 export interface AppSubmission {

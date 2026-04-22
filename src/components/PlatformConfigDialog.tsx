@@ -16,16 +16,12 @@ export function PlatformConfigDialog({ platform, isOpen, onClose }: PlatformConf
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [appId, setAppId] = useState("");
-  const [botAppId, setBotAppId] = useState("");
-  const [botAppSecret, setBotAppSecret] = useState("");
 
   const handleSave = async () => {
     const config = {
       appId,
       apiKey,
       apiSecret,
-      botAppId,
-      botAppSecret,
     };
 
     try {
@@ -56,7 +52,7 @@ export function PlatformConfigDialog({ platform, isOpen, onClose }: PlatformConf
         <DialogHeader>
           <DialogTitle>配置 {platform.name}</DialogTitle>
           <DialogDescription>
-            请输入该平台的 API 凭据及通知机器人信息。
+            请输入该平台的 API 凭据。
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
@@ -73,18 +69,6 @@ export function PlatformConfigDialog({ platform, isOpen, onClose }: PlatformConf
             <div className="grid gap-2">
               <Label htmlFor="apiSecret">API Secret / Client Secret</Label>
               <Input id="apiSecret" type="password" value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} placeholder="请输入 API Secret" />
-            </div>
-          </div>
-
-          <div className="space-y-4 mt-4">
-            <h4 className="text-sm font-bold border-b pb-1">消息通知机器人 (Webhook)</h4>
-            <div className="grid gap-2">
-              <Label htmlFor="botAppId">机器人 App ID</Label>
-              <Input id="botAppId" value={botAppId} onChange={(e) => setBotAppId(e.target.value)} placeholder="请输入机器人 App ID" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="botAppSecret">机器人 App Secret</Label>
-              <Input id="botAppSecret" type="password" value={botAppSecret} onChange={(e) => setBotAppSecret(e.target.value)} placeholder="请输入机器人 App Secret" />
             </div>
           </div>
         </div>

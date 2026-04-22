@@ -7,6 +7,7 @@ import multer from "multer";
 import { HuaweiPlatform } from "./platforms/huawei";
 import { XiaomiPlatform } from "./platforms/xiaomi";
 import { OppoPlatform, VivoPlatform } from "./platforms/oppo_vivo";
+import { HonorAutomation } from "./src/services/honorAutomation";
 import { getDb } from "./src/lib/db.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,6 +21,34 @@ async function startServer() {
   app.use(express.json());
 
   const db = await getDb();
+
+  // Migration: Ensure Honor platform and portalUrls exist in existing db.json
+  await db.update(({ platforms }) => {
+    const portalUrls: Record<string, string> = {
+      huawei: "https://developer.huawei.com/consumer/cn/service/josp/agc/index.html",
+      honor: "https://developer.honor.com/cn",
+      xiaomi: "https://dev.mi.com/console/",
+      oppo: "https://open.oppomobile.com/",
+      vivo: "https://developer.vivo.com.cn/",
+      tencent: "https://open.tencent.com/",
+      ali: "https://open.uc.cn/"
+    };
+
+    const hasHonor = platforms.find(p => p.id === "honor");
+    if (!hasHonor) {
+      platforms.splice(1, 0, { id: "honor", name: "荣耀 (Honor Search)", status: "disconnected", lastSync: "-", portalUrl: portalUrls.honor });
+    }
+
+    platforms.forEach(p => {
+      if (!p.portalUrl && portalUrls[p.id]) {
+        p.portalUrl = portalUrls[p.id];
+      }
+    });
+
+    if (!db.data.botConfig) {
+      (db.data as any).botConfig = { appId: "", appSecret: "", enabled: false };
+    }
+  });
 
   // Configure multer for APK uploads
   const storage = multer.diskStorage({
@@ -70,6 +99,16 @@ async function startServer() {
           const mi = new XiaomiPlatform(config.appId, config.apiKey, config.apiSecret);
           // const apiResponse = await mi.getAuditStatus(config.appId);
           // latestStatus = apiResponse.status === 'PASSED' ? 'approved' : 'reviewing';
+        } else if (platform.id === "honor") {
+          // Use Playwright automation for Honor platform
+          if (config.apiKey && config.apiSecret) {
+            console.log("[Background Sync] Starting Honor automation sync...");
+            const honor = new HonorAutomation(config.apiKey, config.apiSecret);
+            const status = await honor.getAppStatus(config.appId);
+            if (status !== 'unknown') {
+              latestStatus = status as 'reviewing' | 'approved' | 'rejected';
+            }
+          }
         }
 
         // Update local audits for this platform if status changed
@@ -105,18 +144,30 @@ async function startServer() {
 
   app.post("/api/platforms/:id/config", async (req, res) => {
     const { id } = req.params;
-    const config = req.body;
+    const { appId, apiKey, apiSecret } = req.body;
     
     await db.update(({ platforms }) => {
       const platform = platforms.find(p => p.id === id);
       if (platform) {
-        platform.config = config;
+        platform.config = { appId, apiKey, apiSecret };
         platform.status = "connected";
         platform.lastSync = new Date().toLocaleString();
       }
     });
     
     res.json({ message: "Configuration saved", status: "connected" });
+  });
+
+  app.get("/api/bot/config", (req, res) => {
+    res.json(db.data.botConfig);
+  });
+
+  app.post("/api/bot/config", async (req, res) => {
+    const config = req.body;
+    await db.update((data) => {
+      data.botConfig = config;
+    });
+    res.json({ message: "Bot configuration saved" });
   });
 
   app.post("/api/platforms/:id/sync", async (req, res) => {
